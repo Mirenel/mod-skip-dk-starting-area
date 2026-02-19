@@ -16,6 +16,7 @@
 ## Notice
 
 Custom fork
+No config, two extra races, added missing quests, refactored some code
 
 ## Requirements
 
