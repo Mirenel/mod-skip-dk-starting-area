@@ -30,6 +30,7 @@
  */
 
 #include "AccountMgr.h"
+#include "skipdk_loader.h"
 #include "Chat.h"
 #include "Common.h"
 #include "Config.h"
@@ -43,17 +44,34 @@
 #include "World.h"
 #include "WorldSession.h"
 
-constexpr auto YESSKIPDK = 1;
+using namespace Acore::ChatCommands;
+
+
+static void HandleDKGO(Player* player, Quest const* quest) {
+
+    player->RewardQuest(quest, 0, player);
+
+}
 
 void Azerothcore_skip_deathknight_HandleSkip(Player* player)
 {
-    //Not sure where DKs were supposed to pick this up from, leaving as the one manual add
     player->AddItem(6948, true); //Hearthstone
-
+  
     // these are all the starter quests that award talent points, quest items, or spells
-    int STARTER_QUESTS[33] = { 12593, 12619, 12842, 12848, 12636, 12641, 12657, 12678, 12679, 12680, 12687, 12698, 12701, 12706, 12716, 12719, 12720, 12722, 12724, 12725, 12727, 12733, -1, 12751, 12754, 12755, 12756, 12757, 12779, 12801, 13165, 13166 };
+    
+    int STARTER_QUESTS[32] =
+      { 12593, 12619, 12842, 12848, 12636,
+        12641, 12657, 12850, 12670, 12678,
+        12680, 12687, 12679, 12733, 12697, 
+        12698, 12700, 12701, 12706, 12714,
+        12715, 12719, 12720, 12722, 12716, 
+        12717, 12723, 12724, 12725, 12727,
+        12728, -1};
 
-    int specialSurpriseQuestId = -1;
+    int STARTER_QUESTS_CONTINUED[11] = { 12751, 12754, 12755, 12756, 12757, 12778, 12779, 12800, 12801, 13165, 13166 };
+
+    int specialSurpriseQuestId = -1; // IF PROCESSED CAUSES WORLDSERVER
+
     switch (player->getRace())
     {
     case RACE_TAUREN:
@@ -86,19 +104,77 @@ void Azerothcore_skip_deathknight_HandleSkip(Player* player)
     case RACE_UNDEAD_PLAYER:
         specialSurpriseQuestId = 12750;
         break;
+    case RACE_GOBLIN:
+        specialSurpriseQuestId = 12748; // ORC
+        break;
+    case RACE_WORGEN:
+        specialSurpriseQuestId = 12743; // NIGHTELF
+        break;
     }
 
-    STARTER_QUESTS[22] = specialSurpriseQuestId;
-    STARTER_QUESTS[32] = player->GetTeamId() == TEAM_ALLIANCE ? 13188 : 13189;
+    STARTER_QUESTS[31] = specialSurpriseQuestId;
 
+    Sleep(3500); // SLEEP
+ 
     for (int questId : STARTER_QUESTS)
     {
+        
+        Quest const* curQuest = sObjectMgr->GetQuestTemplate(questId);
+
         if (player->GetQuestStatus(questId) == QUEST_STATUS_NONE)
         {
-            player->AddQuest(sObjectMgr->GetQuestTemplate(questId), nullptr);
-            player->RewardQuest(sObjectMgr->GetQuestTemplate(questId), 0, player, false);
+            
+            player->AddQuest(curQuest, nullptr);
+
         }
+
+
+        HandleDKGO(player, curQuest);
     }
+
+
+    for (int questIdCont : STARTER_QUESTS_CONTINUED)
+    {
+
+       Quest const* curContQuest = sObjectMgr->GetQuestTemplate(questIdCont);
+
+        if (player->GetQuestStatus(questIdCont) == QUEST_STATUS_NONE)
+        {
+
+            player->AddQuest(curContQuest, nullptr);
+
+        }
+
+        HandleDKGO(player, curContQuest);
+    }
+
+    
+    if (player->GetTeamId() == TEAM_ALLIANCE) {
+
+        Quest const* curQuest = sObjectMgr->GetQuestTemplate(13188);
+
+        if (player->GetQuestStatus(13188) == QUEST_STATUS_NONE)
+        {
+
+            player->AddQuest(curQuest, nullptr);
+
+        }
+
+        HandleDKGO(player, curQuest);
+    }
+    else {
+        Quest const* curQuest = sObjectMgr->GetQuestTemplate(13189);
+
+        if (player->GetQuestStatus(13189) == QUEST_STATUS_NONE)
+        {
+
+            player->AddQuest(curQuest, nullptr);
+
+        }
+
+        HandleDKGO(player, curQuest);
+    }
+    
 
     //these are alternate reward items from quest 12679, item 39320 is chosen by default as the reward
     player->AddItem(38664, true);//Sky Darkener's Shroud of the Unholy
@@ -107,144 +183,72 @@ void Azerothcore_skip_deathknight_HandleSkip(Player* player)
     //these are alternate reward items from quest 12801, item 38633 is chosen by default as the reward
     player->AddItem(38632, true);//Greatsword of the Ebon Blade
 
-    int DKL = sConfigMgr->GetOption<float>("Skip.Deathknight.Start.Level", 58);
+    int DKL = 58;
     if (player->GetLevel() <= DKL)
     {
         //GiveLevel updates character properties more thoroughly than SetLevel
         player->GiveLevel(DKL);
     }
 
-    if (sConfigMgr->GetOption<bool>("Skip.Deathknight.Start.Trained", false))
-    {
-        player->addSpell(49998, SPEC_MASK_ALL, true); // Death Strike rank 1
-        player->addSpell(47528, SPEC_MASK_ALL, true); // Mind Freeze
-        player->addSpell(46584, SPEC_MASK_ALL, true); // Raise Dead
-        player->addSpell(45524, SPEC_MASK_ALL, true); // Chains of Ice
-        player->addSpell(48263, SPEC_MASK_ALL, true); // Frost Presence
-        player->addSpell(50842, SPEC_MASK_ALL, true); // Pestilence
-        player->addSpell(53342, SPEC_MASK_ALL, true); // Rune of Spellshattering
-        player->addSpell(48721, SPEC_MASK_ALL, true); // Blood Boil rank 1
-        player->addSpell(54447, SPEC_MASK_ALL, true); // Rune of Spellbreaking
-    }
-
+    player->learnSpell(49998, false, false); // Death Strike rank 1
+    player->learnSpell(47528, false, false); // Mind Freeze
+    player->learnSpell(46584, false, false); // Raise Dead
+    player->learnSpell(48263, false, false); // Frost Presence
+    player->learnSpell(45524, false, false); // Chains of Ice
+    player->learnSpell(48721, false, false); // Blood Boil rank 1
+    player->learnSpell(50842, false, false); // Pestilence
+    player->learnSpell(53342, false, false); // Rune of Spellshattering
+    player->learnSpell(54447, false, false); // Rune of Spellbreaking
+ 
     //Don't need to save all players, just current
     player->SaveToDB(false, false);
-
+    
     WorldLocation Aloc = WorldLocation(0, -8866.55f, 671.39f, 97.90f, 5.27f);// Stormwind
     WorldLocation Hloc = WorldLocation(1, 1637.62f, -4440.22f, 15.78f, 2.42f);// Orgrimmar
-
+    /*
     if (player->GetTeamId() == TEAM_ALLIANCE)
     {
+        //Sleep(5000);
         player->TeleportTo(0, -8833.37f, 628.62f, 94.00f, 1.06f);//Stormwind
         player->SetHomebind(Aloc, 1637);// Stormwind Homebind location
     }
     else
     {
+        //Sleep(5000);
         player->TeleportTo(1, 1569.59f, -4397.63f, 7.70f, 0.54f);//Orgrimmar
         player->SetHomebind(Hloc, 1653);// Orgrimmar Homebind location
     }
+    */
 
-    if (sConfigMgr->GetOption<bool>("DeleteGold.Deathknight.Optional.Enable", true))
-    {
-        int DKM = sConfigMgr->GetOption<int32>("StartHeroicPlayerMoney", 2000);
-        player->SetMoney(DKM);
-    }
 }
 
 class AzerothCore_skip_deathknight_announce : public PlayerScript
 {
 public:
-    AzerothCore_skip_deathknight_announce() : PlayerScript("AzerothCore_skip_deathknight_announce", {
-        PLAYERHOOK_ON_LOGIN
-    }) { }
+    AzerothCore_skip_deathknight_announce() : PlayerScript("AzerothCore_skip_deathknight_announce") { }
 
     void OnPlayerLogin(Player* Player)
     {
-        if (sConfigMgr->GetOption<bool>("Skip.Deathknight.Starter.Announce.enable", true) && (sConfigMgr->GetOption<bool>("Skip.Deathknight.Starter.Enable", true) || sConfigMgr->GetOption<bool>("Skip.Deathknight.Optional.Enable", true)))
-            ChatHandler(Player->GetSession()).SendSysMessage("This server is running the |cff4CFF00Azerothcore Skip Deathknight Starter |rmodule.");
+        //ChatHandler(Player->GetSession()).SendSysMessage("|cff4CFF00 DK SKIP ACTIVE|r.");
     }
 };
 
 class AzerothCore_skip_deathknight : public PlayerScript
 {
 public:
-    AzerothCore_skip_deathknight() : PlayerScript("AzerothCore_skip_deathknight", {
-        PLAYERHOOK_ON_FIRST_LOGIN
-    }) { }
+    AzerothCore_skip_deathknight() : PlayerScript("AzerothCore_skip_deathknight") {}
 
     void OnPlayerFirstLogin(Player* player) override
     {
         if (player->GetAreaId() == 4342)
         {
-            //These changes make it so user mistakes in the configuration file don't cause this to run 2x
-            if ((sConfigMgr->GetOption<bool>("Skip.Deathknight.Starter.Enable", true) && player->GetSession()->GetSecurity() == SEC_PLAYER)
-                || (sConfigMgr->GetOption<bool>("GM.Skip.Deathknight.Starter.Enable", true) && player->GetSession()->GetSecurity() >= SEC_MODERATOR))
-            {
-                Azerothcore_skip_deathknight_HandleSkip(player);
-            }
+                Azerothcore_skip_deathknight_HandleSkip(player); 
         }
     }
-};
-
-#define LOCALE_LICHKING_0 "I wish to skip the Death Knight starter questline."
-#define LOCALE_LICHKING_1 "죽음의 기사 스타터 퀘스트 라인을 건너뛰고 싶습니다."
-#define LOCALE_LICHKING_2 "Je souhaite sauter la série de quêtes de démarrage du Chevalier de la mort."
-#define LOCALE_LICHKING_3 "Ich möchte die Todesritter-Starter-Questreihe überspringen."
-#define LOCALE_LICHKING_4 "我想跳過死亡騎士新手任務線。"
-#define LOCALE_LICHKING_5 "我想跳過死亡騎士新手任務線。"
-#define LOCALE_LICHKING_6 "Deseo saltarme la línea de misiones de inicio del Caballero de la Muerte."
-#define LOCALE_LICHKING_7 "Deseo saltarme la línea de misiones de inicio del Caballero de la Muerte."
-#define LOCALE_LICHKING_8 "Я хочу пропустить начальную цепочку заданий Рыцаря Смерти."
-
-class Azerothcore_optional_deathknight_skip : public CreatureScript
-{
-public:
-    Azerothcore_optional_deathknight_skip() : CreatureScript("npc_ac_skip_lich") { }
-
-        bool OnGossipHello(Player* player, Creature* creature) override
-        {
-            if (creature->IsQuestGiver())
-                player->PrepareQuestMenu(creature->GetGUID());
-
-            if (sConfigMgr->GetOption<bool>("Skip.Deathknight.Optional.Enable", true))
-            {
-                char const* localizedEntry;
-                switch (player->GetSession()->GetSessionDbcLocale())
-                {
-                case LOCALE_koKR: localizedEntry = LOCALE_LICHKING_1; break;
-                case LOCALE_frFR: localizedEntry = LOCALE_LICHKING_2; break;
-                case LOCALE_deDE: localizedEntry = LOCALE_LICHKING_3; break;
-                case LOCALE_zhCN: localizedEntry = LOCALE_LICHKING_4; break;
-                case LOCALE_zhTW: localizedEntry = LOCALE_LICHKING_5; break;
-                case LOCALE_esES: localizedEntry = LOCALE_LICHKING_6; break;
-                case LOCALE_esMX: localizedEntry = LOCALE_LICHKING_7; break;
-                case LOCALE_ruRU: localizedEntry = LOCALE_LICHKING_8; break;
-                case LOCALE_enUS: localizedEntry = LOCALE_LICHKING_0; break;
-                default: localizedEntry = LOCALE_LICHKING_0;
-                }
-                AddGossipItemFor(player, GOSSIP_ICON_INTERACT_1, localizedEntry, GOSSIP_SENDER_MAIN, YESSKIPDK, "Are you sure you want to skip the starting zone?", 0, false);
-            }
-            player->TalkedToCreature(creature->GetEntry(), creature->GetGUID());
-            SendGossipMenuFor(player, player->GetGossipTextId(creature), creature->GetGUID());
-            return true;
-        }
-
-        bool OnGossipSelect(Player* player, Creature* /*creature*/, uint32 /*menuId*/, uint32 gossipListId) override
-        {
-            switch (gossipListId)
-            {
-                case YESSKIPDK:
-                    Azerothcore_skip_deathknight_HandleSkip(player);
-                    CloseGossipMenuFor(player);
-                    break;
-            }
-            return true;
-        }
 };
 
 void AddSkipDKScripts()
 {
     new AzerothCore_skip_deathknight_announce;
     new AzerothCore_skip_deathknight;
-    new Azerothcore_optional_deathknight_skip;
 }
